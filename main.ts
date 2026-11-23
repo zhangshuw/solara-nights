@@ -39,3 +39,4 @@ writeFileSync(
     game_path_max_bytes: 1000,
   }),
 );
+console.log('Packaged Solara Nights, an original coastal open-world game.');
