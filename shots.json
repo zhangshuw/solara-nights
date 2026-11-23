@@ -1,6 +1,30 @@
-[
-  { "name": "1-chase.jpg", "query": "?shot=chase&seed=1" },
-  { "name": "2-foot.jpg", "query": "?shot=foot&seed=1" },
-  { "name": "3-drive.jpg", "query": "?shot=drive&seed=1" },
-  { "name": "4-mission.jpg", "query": "?shot=mission&seed=1" }
-]
+{
+  "viewport": { "width": 1280, "height": 720 },
+  "readyExpression": "window.__shotReady === true",
+  "shots": [
+    {
+      "name": "chase",
+      "file": "screenshots/1-chase.jpg",
+      "url": "/?shot=chase&seed=202607",
+      "description": "4-star police chase on Palm Grand Ave at neon dusk with stolen Solara GT, pursuing PD Interceptors, Air-1 helicopter spotlight, minimap, and HUD."
+    },
+    {
+      "name": "foot",
+      "file": "screenshots/2-foot.jpg",
+      "url": "/?shot=foot&seed=202607",
+      "description": "On foot along Palm Strip sidewalk near Solara Pier with pedestrians, road traffic, neon buildings, mission beacon, minimap, and HUD."
+    },
+    {
+      "name": "drive",
+      "file": "screenshots/3-drive.jpg",
+      "url": "/?shot=drive&seed=202607",
+      "description": "Driving a stolen Valkyrie Turbo through downtown neon traffic at dusk with headlight cones, 2 wanted stars, minimap, and HUD."
+    },
+    {
+      "name": "mission",
+      "file": "screenshots/4-mission.jpg",
+      "url": "/?shot=mission&seed=202607",
+      "description": "Sunset Plaza mission firefight with muzzle flashes, bullet tracers, enemy health bars, particles, objective banner, and minimap."
+    }
+  ]
+}

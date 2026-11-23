@@ -1,46 +1,224 @@
-import {CELL,carColors,angleDelta,distance} from './config.js';
-import {createCar} from './vehicles.js';
-import {choose} from './random.js';
+// Lane-following road-grid traffic AI with intersection turning, obstacle braking, and parked car seeding.
 
-const directions=[[1,0],[0,1],[-1,0],[0,-1]];
-const lanePoint=(col,row,dir)=>({x:col*CELL+52-directions[dir][1]*21,y:row*CELL+52+directions[dir][0]*21});
-export function seedTraffic(random){
-  const cars=[];
-  for(let i=0;i<100;i++){
-    const col=i%8,row=Math.floor(i/8)%8,dir=i%2===0?0:2;
-    const start=lanePoint(col,row,dir), shift=(i<64?.27:.78)*CELL;
-    const x=start.x+directions[dir][0]*shift;
-    if(x<45||x>2880)continue;
-    const c=createCar(x,start.y,dir*Math.PI/2,choose(random,carColors));
-    c.driver='traffic';c.dir=dir;c.cruise=76+random()*57;c.col=col+directions[dir][0];c.row=row;
-    c.target=lanePoint(c.col,c.row,dir);cars.push(c);
+import {
+  BOARDWALK_X,
+  HORIZONTAL_ROADS,
+  TRAFFIC_POOL,
+  VERTICAL_ROADS,
+  WORLD_HEIGHT,
+} from './config.js';
+import { applyVehicleControls, createVehicle } from './vehicles.js';
+import { angleDiff, clamp, dist } from './random.js';
+
+const TARGET_TRAFFIC_COUNT = 22;
+
+export function spawnInitialVehicles(state) {
+  const { city, rng, vehicles } = state;
+
+  // Seed parked cars in curbside spots (including a guaranteed Solara GT near the pier start)
+  vehicles.push(createVehicle('solaraGT', 3015, 1612, 0, rng, { color: '#ff476f' }));
+  vehicles.push(createVehicle('marlin', 3015, 1468, Math.PI, rng, { color: '#48dbfb' }));
+  vehicles.push(createVehicle('valkyrie', 1682, 1455, -Math.PI * 0.5, rng, { color: '#f9ed69' }));
+
+  for (let i = 0; i < city.parkingSpots.length; i++) {
+    if (!rng.chance(0.42)) continue;
+    const spot = city.parkingSpots[i];
+    if (isSpotCrowded(vehicles, spot.x, spot.y, 95)) continue;
+    const typeId = rng.pick(TRAFFIC_POOL);
+    vehicles.push(createVehicle(typeId, spot.x, spot.y, spot.angle, rng));
   }
-  for(let row=0;row<8;row++)for(let col=0;col<8;col++){
-    const c=createCar(col*CELL+91,row*CELL+168,Math.PI/2,choose(random,carColors));
-    cars.push(c);
+
+  // Spawn active moving traffic across avenues
+  for (let i = 0; i < TARGET_TRAFFIC_COUNT; i++) {
+    spawnTrafficCar(state, false);
   }
-  return cars;
 }
-export function updateTraffic(game,dt){
-  for(const c of game.cars){
-    if(c.driver!=='traffic')continue;
-    if(distance(c,c.target)<11){
-      const options=[c.dir,(c.dir+1)%4,(c.dir+3)%4,(c.dir+2)%4].filter(dir=>{
-        const [dx,dy]=directions[dir];return c.col+dx>=0&&c.col+dx<=8&&c.row+dy>=0&&c.row+dy<=7;
-      });
-      const forward=options.includes(c.dir)&&game.random()<.69;
-      c.dir=forward?c.dir:choose(game.random,options.length>1?options.filter(dir=>dir!==(c.dir+2)%4):options);
-      c.col+=directions[c.dir][0];c.row+=directions[c.dir][1];
-      c.target=lanePoint(c.col,c.row,c.dir);
+
+export function spawnTrafficCar(state, outsideCamera = true) {
+  const { rng, vehicles, player } = state;
+
+  for (let attempt = 0; attempt < 18; attempt++) {
+    const vertical = rng.chance(0.5);
+    let x = 0;
+    let y = 0;
+    let dir = 1;
+    let roadIndex = 0;
+    let angle = 0;
+
+    if (vertical) {
+      roadIndex = rng.int(0, VERTICAL_ROADS.length - 1);
+      const road = VERTICAL_ROADS[roadIndex];
+      dir = rng.chance(0.5) ? 1 : -1;
+      const laneOffset = road.width * 0.24;
+      x = road.x + (dir === 1 ? -laneOffset : laneOffset);
+      y = rng.range(180, WORLD_HEIGHT - 180);
+      angle = dir === 1 ? Math.PI * 0.5 : -Math.PI * 0.5;
+    } else {
+      roadIndex = rng.int(0, HORIZONTAL_ROADS.length - 1);
+      const road = HORIZONTAL_ROADS[roadIndex];
+      dir = rng.chance(0.5) ? 1 : -1;
+      const laneOffset = road.width * 0.24;
+      x = rng.range(200, BOARDWALK_X - 180);
+      y = road.y + (dir === 1 ? laneOffset : -laneOffset);
+      angle = dir === 1 ? 0 : Math.PI;
     }
-    const a=Math.atan2(c.target.y-c.y,c.target.x-c.x);
-    const blocked=game.cars.some(o=>{
-      if(o===c||Math.abs(o.x-c.x)>62||Math.abs(o.y-c.y)>62)return false;
-      const dx=o.x-c.x,dy=o.y-c.y, ahead=dx*Math.cos(a)+dy*Math.sin(a);
-      return ahead>0&&ahead<55&&Math.abs(dy*Math.cos(a)-dx*Math.sin(a))<20;
+
+    const dPlayer = dist(x, y, player.x, player.y);
+    if (outsideCamera && (dPlayer < 720 || dPlayer > 1750)) continue;
+    if (!outsideCamera && dPlayer < 190) continue;
+    if (isSpotCrowded(vehicles, x, y, 130)) continue;
+
+    const typeId = rng.pick(TRAFFIC_POOL);
+    const v = createVehicle(typeId, x, y, angle, rng, {
+      driver: 'traffic',
+      ai: {
+        axis: vertical ? 'v' : 'h',
+        roadIndex,
+        dir,
+        cruiseSpeed: rng.range(165, 240),
+        turnCooldown: 1.0,
+        panicTimer: 0,
+      },
     });
-    c.speed+=( (blocked?0:c.cruise)-c.speed)*Math.min(1,dt*3.8);
-    c.a+=angleDelta(a,c.a)*Math.min(1,dt*10);
-    c.x+=Math.cos(a)*c.speed*dt;c.y+=Math.sin(a)*c.speed*dt;
+    v.vx = Math.cos(angle) * v.ai.cruiseSpeed * 0.7;
+    v.vy = Math.sin(angle) * v.ai.cruiseSpeed * 0.7;
+    vehicles.push(v);
+    return v;
   }
+  return null;
+}
+
+export function alertTrafficNear(state, x, y, radius = 340) {
+  for (const v of state.vehicles) {
+    if (v.driver !== 'traffic' || !v.ai) continue;
+    if (dist(x, y, v.x, v.y) < radius) {
+      v.ai.panicTimer = 4.5;
+    }
+  }
+}
+
+export function updateTraffic(state, dt) {
+  const { vehicles, player, rng } = state;
+  let activeTraffic = 0;
+
+  for (let i = vehicles.length - 1; i >= 0; i--) {
+    const v = vehicles[i];
+    if (v.driver !== 'traffic' || !v.ai) continue;
+
+    // Recycle distant traffic so roads around the player stay busy
+    if (dist(v.x, v.y, player.x, player.y) > 1950) {
+      vehicles.splice(i, 1);
+      continue;
+    }
+
+    activeTraffic++;
+    const ai = v.ai;
+    if (ai.turnCooldown > 0) ai.turnCooldown -= dt;
+    if (ai.panicTimer > 0) ai.panicTimer -= dt;
+
+    // Turn around cleanly near road endpoints
+    if (ai.axis === 'v') {
+      if (v.y < 140 && ai.dir === -1) ai.dir = 1;
+      if (v.y > WORLD_HEIGHT - 140 && ai.dir === 1) ai.dir = -1;
+    } else {
+      if (v.x < 180 && ai.dir === -1) ai.dir = 1;
+      if (v.x > BOARDWALK_X - 160 && ai.dir === 1) ai.dir = -1;
+    }
+
+    // Decide turns at intersections
+    if (ai.turnCooldown <= 0) {
+      if (ai.axis === 'v') {
+        for (let hi = 0; hi < HORIZONTAL_ROADS.length; hi++) {
+          const hr = HORIZONTAL_ROADS[hi];
+          if (Math.abs(v.y - hr.y) < 34 && rng.chance(0.35)) {
+            ai.axis = 'h';
+            ai.roadIndex = hi;
+            ai.dir = rng.chance(0.5) ? 1 : -1;
+            ai.turnCooldown = 2.4;
+            break;
+          }
+        }
+      } else {
+        for (let vi = 0; vi < VERTICAL_ROADS.length; vi++) {
+          const vr = VERTICAL_ROADS[vi];
+          if (Math.abs(v.x - vr.x) < 34 && rng.chance(0.35)) {
+            ai.axis = 'v';
+            ai.roadIndex = vi;
+            ai.dir = rng.chance(0.5) ? 1 : -1;
+            ai.turnCooldown = 2.4;
+            break;
+          }
+        }
+      }
+    }
+
+    // Compute target lookahead point in right-hand lane
+    let targetX = v.x;
+    let targetY = v.y;
+    if (ai.axis === 'v') {
+      const road = VERTICAL_ROADS[ai.roadIndex];
+      const laneOffset = road.width * 0.24;
+      targetX = road.x + (ai.dir === 1 ? -laneOffset : laneOffset);
+      targetY = v.y + ai.dir * 165;
+    } else {
+      const road = HORIZONTAL_ROADS[ai.roadIndex];
+      const laneOffset = road.width * 0.24;
+      targetX = v.x + ai.dir * 165;
+      targetY = road.y + (ai.dir === 1 ? laneOffset : -laneOffset);
+    }
+
+    const desiredAngle = Math.atan2(targetY - v.y, targetX - v.x);
+    const diff = angleDiff(v.angle, desiredAngle);
+    const steer = clamp(diff * 2.4, -1, 1);
+
+    // Check forward corridor for other cars or player to brake cleanly
+    const blocked = isObstacleAhead(state, v, ai.panicTimer > 0 ? 110 : 165);
+    const targetSpeed = blocked ? 0 : ai.panicTimer > 0 ? ai.cruiseSpeed * 1.48 : ai.cruiseSpeed;
+
+    let throttle = 0;
+    if (blocked && v.speed > 12) {
+      throttle = -1;
+    } else if (v.speed < targetSpeed) {
+      throttle = clamp((targetSpeed - v.speed) / 110, 0.2, 1);
+    }
+
+    applyVehicleControls(v, { throttle, steer, handbrake: blocked && v.speed > 90 }, dt, state);
+  }
+
+  // Replenish traffic up to cap
+  if (activeTraffic < TARGET_TRAFFIC_COUNT && state.tick % 8 === 0) {
+    spawnTrafficCar(state, true);
+  }
+}
+
+function isObstacleAhead(state, self, lookDist) {
+  const fx = Math.cos(self.angle);
+  const fy = Math.sin(self.angle);
+
+  // Check player on foot
+  if (!state.player.vehicle) {
+    const dx = state.player.x - self.x;
+    const dy = state.player.y - self.y;
+    const fwd = dx * fx + dy * fy;
+    const lat = Math.abs(-dx * fy + dy * fx);
+    if (fwd > 28 && fwd < lookDist * 0.85 && lat < 30) return true;
+  }
+
+  for (const other of state.vehicles) {
+    if (other === self) continue;
+    const dx = other.x - self.x;
+    const dy = other.y - self.y;
+    const fwd = dx * fx + dy * fy;
+    if (fwd < 34 || fwd > lookDist) continue;
+    const lat = Math.abs(-dx * fy + dy * fx);
+    if (lat < (self.width + other.width) * 0.52) return true;
+  }
+  return false;
+}
+
+function isSpotCrowded(vehicles, x, y, minDist) {
+  for (const v of vehicles) {
+    if (dist(x, y, v.x, v.y) < minDist) return true;
+  }
+  return false;
 }

@@ -1,6 +1,295 @@
-export const WIDTH=1280, HEIGHT=720, CELL=360, ROAD=104, COLS=10, ROWS=8;
-export const WORLD_W=COLS*CELL, WORLD_H=ROWS*CELL;
-export const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
-export const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-export const angleDelta=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
-export const carColors=['#f27d64','#ffd17f','#76c2b7','#a7afb9','#e6ded0','#ba8cba','#658aa8'];
+// Core configuration, world dimensions, vehicle archetypes, weapons, and lighting palettes for Solara Nights.
+
+export const VIEWPORT_WIDTH = 1280;
+export const VIEWPORT_HEIGHT = 720;
+
+export const WORLD_WIDTH = 4200;
+export const WORLD_HEIGHT = 3100;
+
+// East coast beach & ocean boundary
+export const BOARDWALK_X = 3380;
+export const BEACH_START_X = 3480;
+export const WATER_START_X = 3760;
+
+// Road grid coordinates (avenue centers)
+export const VERTICAL_ROADS = [
+  { x: 360, width: 120, name: 'Dockside Way', lanes: 2 },
+  { x: 960, width: 140, name: 'Harbor Blvd', lanes: 2 },
+  { x: 1620, width: 170, name: 'Solara Ave', lanes: 4 },
+  { x: 2280, width: 150, name: 'Mirage Dr', lanes: 2 },
+  { x: 2940, width: 160, name: 'Ocean Strip', lanes: 4 },
+];
+
+export const HORIZONTAL_ROADS = [
+  { y: 340, width: 130, name: 'Coral Ridge Rd', lanes: 2 },
+  { y: 920, width: 150, name: 'Sunset Blvd', lanes: 4 },
+  { y: 1540, width: 160, name: 'Palm Grand Ave', lanes: 4 },
+  { y: 2160, width: 140, name: 'Marina Pkwy', lanes: 2 },
+  { y: 2740, width: 130, name: 'Port Causeway', lanes: 2 },
+];
+
+export const SIDEWALK_WIDTH = 44;
+
+export const PLAYER_CONFIG = {
+  radius: 13,
+  walkSpeed: 195,
+  sprintSpeed: 305,
+  maxHealth: 100,
+  maxArmor: 50,
+  maxStamina: 100,
+  enterVehicleDist: 78,
+};
+
+export const WEAPONS = [
+  {
+    id: 'pistol',
+    name: '9mm Solara',
+    shortName: '9MM',
+    damage: 24,
+    fireRate: 0.24,
+    bulletSpeed: 1120,
+    spread: 0.045,
+    pellets: 1,
+    magSize: 12,
+    reloadTime: 1.0,
+    range: 640,
+    tracerColor: '#ffe082',
+    tracerLen: 30,
+    shake: 2.5,
+    sound: 'pistol',
+    startAmmo: 84,
+  },
+  {
+    id: 'smg',
+    name: 'Viper SMG',
+    shortName: 'SMG',
+    damage: 16,
+    fireRate: 0.095,
+    bulletSpeed: 1180,
+    spread: 0.11,
+    pellets: 1,
+    magSize: 30,
+    reloadTime: 1.35,
+    range: 560,
+    tracerColor: '#ffab66',
+    tracerLen: 26,
+    shake: 1.8,
+    sound: 'smg',
+    startAmmo: 150,
+  },
+  {
+    id: 'shotgun',
+    name: 'Breaker 12G',
+    shortName: '12G',
+    damage: 15,
+    fireRate: 0.72,
+    bulletSpeed: 980,
+    spread: 0.24,
+    pellets: 6,
+    magSize: 6,
+    reloadTime: 1.65,
+    range: 360,
+    tracerColor: '#ffd27d',
+    tracerLen: 22,
+    shake: 6.5,
+    sound: 'shotgun',
+    startAmmo: 30,
+  },
+];
+
+export const VEHICLE_TYPES = {
+  solaraGT: {
+    id: 'solaraGT',
+    name: 'Solara GT',
+    length: 76,
+    width: 36,
+    maxSpeed: 540,
+    reverseSpeed: 170,
+    accel: 470,
+    brake: 640,
+    turnRate: 3.15,
+    grip: 6.6,
+    driftGrip: 2.1,
+    mass: 1.1,
+    maxHp: 135,
+    style: 'sports',
+    palette: ['#ff476f', '#ff8c42', '#00d2d3', '#ffd166', '#9b5de5'],
+  },
+  marlin: {
+    id: 'marlin',
+    name: 'Marlin Cruiser',
+    length: 78,
+    width: 36,
+    maxSpeed: 465,
+    reverseSpeed: 155,
+    accel: 390,
+    brake: 560,
+    turnRate: 2.95,
+    grip: 6.2,
+    driftGrip: 2.2,
+    mass: 1.2,
+    maxHp: 145,
+    style: 'convertible',
+    palette: ['#ff6b8b', '#48dbfb', '#feca57', '#ff9ff3', '#1dd1a1'],
+  },
+  valkyrie: {
+    id: 'valkyrie',
+    name: 'Valkyrie Turbo',
+    length: 78,
+    width: 38,
+    maxSpeed: 610,
+    reverseSpeed: 185,
+    accel: 560,
+    brake: 720,
+    turnRate: 3.35,
+    grip: 7.4,
+    driftGrip: 2.3,
+    mass: 1.05,
+    maxHp: 125,
+    style: 'super',
+    palette: ['#ff2e63', '#08d9d6', '#f9ed69', '#f08a5d', '#eaeaea'],
+  },
+  bayside: {
+    id: 'bayside',
+    name: 'Bayside Sedan',
+    length: 74,
+    width: 35,
+    maxSpeed: 410,
+    reverseSpeed: 145,
+    accel: 330,
+    brake: 520,
+    turnRate: 2.75,
+    grip: 6.4,
+    driftGrip: 2.5,
+    mass: 1.3,
+    maxHp: 155,
+    style: 'sedan',
+    palette: ['#6c7a89', '#d6dde6', '#3d5a80', '#98c1d9', '#c8553d', '#588157'],
+  },
+  taxi: {
+    id: 'taxi',
+    name: 'Coastline Cab',
+    length: 74,
+    width: 35,
+    maxSpeed: 425,
+    reverseSpeed: 145,
+    accel: 345,
+    brake: 540,
+    turnRate: 2.85,
+    grip: 6.5,
+    driftGrip: 2.4,
+    mass: 1.3,
+    maxHp: 155,
+    style: 'taxi',
+    palette: ['#f7b801'],
+  },
+  kodiak: {
+    id: 'kodiak',
+    name: 'Kodiak SUV',
+    length: 84,
+    width: 40,
+    maxSpeed: 405,
+    reverseSpeed: 140,
+    accel: 320,
+    brake: 500,
+    turnRate: 2.5,
+    grip: 6.0,
+    driftGrip: 2.6,
+    mass: 1.75,
+    maxHp: 210,
+    style: 'suv',
+    palette: ['#2b2d42', '#4a5759', '#6d597a', '#354f52', '#8d99ae'],
+  },
+  harborVan: {
+    id: 'harborVan',
+    name: 'Harbor Van',
+    length: 92,
+    width: 42,
+    maxSpeed: 375,
+    reverseSpeed: 130,
+    accel: 280,
+    brake: 470,
+    turnRate: 2.25,
+    grip: 5.8,
+    driftGrip: 2.8,
+    mass: 2.1,
+    maxHp: 260,
+    style: 'van',
+    palette: ['#dfe6e9', '#384654', '#576574', '#222f3e'],
+  },
+  police: {
+    id: 'police',
+    name: 'Solara PD Interceptor',
+    length: 80,
+    width: 37,
+    maxSpeed: 545,
+    reverseSpeed: 175,
+    accel: 495,
+    brake: 680,
+    turnRate: 3.15,
+    grip: 7.2,
+    driftGrip: 2.3,
+    mass: 1.45,
+    maxHp: 195,
+    style: 'police',
+    palette: ['#182032'],
+  },
+  enforcer: {
+    id: 'enforcer',
+    name: 'PD Tactical Enforcer',
+    length: 92,
+    width: 42,
+    maxSpeed: 470,
+    reverseSpeed: 155,
+    accel: 410,
+    brake: 600,
+    turnRate: 2.55,
+    grip: 6.8,
+    driftGrip: 2.6,
+    mass: 2.35,
+    maxHp: 320,
+    style: 'enforcer',
+    palette: ['#111827'],
+  },
+};
+
+export const TRAFFIC_POOL = ['bayside', 'bayside', 'marlin', 'taxi', 'kodiak', 'solaraGT', 'harborVan', 'valkyrie'];
+
+export const WANTED_CONFIG = {
+  maxStars: 5,
+  thresholds: [0, 22, 62, 125, 210, 320],
+  evadeSeconds: [0, 14, 19, 24, 30, 36],
+  maxPoliceCars: [0, 2, 3, 4, 6, 8],
+  heliMinStars: 3,
+};
+
+// Time-of-day runs on a 0..1 cycle: 0.0 = golden sunset, 0.35 = dusk, 0.6 = neon night, 0.85 = sunny day
+export const LIGHTING_KEYFRAMES = [
+  { t: 0.0, tint: [255, 132, 74, 0.14], darkness: 0.14, lights: 0.45, label: 'GOLDEN HOUR' },
+  { t: 0.28, tint: [152, 74, 168, 0.22], darkness: 0.34, lights: 0.82, label: 'SOLARA DUSK' },
+  { t: 0.56, tint: [24, 34, 78, 0.34], darkness: 0.48, lights: 1.0, label: 'NEON NIGHT' },
+  { t: 0.84, tint: [255, 226, 178, 0.06], darkness: 0.04, lights: 0.12, label: 'COASTAL SUN' },
+];
+
+export const COLORS = {
+  oceanDeep: '#0a4c73',
+  oceanMid: '#12719b',
+  oceanShallow: '#25a3bf',
+  foam: 'rgba(232, 252, 255, 0.58)',
+  sandLight: '#edd49d',
+  sandWarm: '#e0be7c',
+  boardwalk: '#9b744d',
+  asphalt: '#242938',
+  asphaltLine: '#e8c45f',
+  asphaltWhite: 'rgba(235, 242, 255, 0.62)',
+  sidewalk: '#7f8799',
+  sidewalkEdge: '#a0a8b8',
+  grass: '#327b56',
+  grassDark: '#286446',
+  neonPink: '#ff4d94',
+  neonCyan: '#2ef2ff',
+  neonAmber: '#ffb347',
+  neonMint: '#3effa8',
+  hudBg: 'rgba(11, 14, 26, 0.82)',
+  hudBorder: 'rgba(255, 166, 110, 0.35)',
+};
